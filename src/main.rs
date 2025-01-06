@@ -1,5 +1,6 @@
 mod cpu;
+mod opcode;
 
 fn main() {
-    println!("{}", 0b1000_0000);
+
 }

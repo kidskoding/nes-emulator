@@ -1,10 +1,13 @@
+use crate::opcode::OpCode;
+use lazy_static::lazy_static;
+
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub status: u8,
     pub program_counter: u16,
-    memory: [u8; 0xFFFF]
+    memory: [u8; 0xFFFF],
 }
 
 #[derive(Debug)]
@@ -20,6 +23,31 @@ pub enum AddressingMode {
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
+}
+
+lazy_static! {
+    pub static ref CPU_OPS_CODES: Vec<OpCode<'static>> = vec![
+        OpCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing),
+        OpCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0xE8, "INX", 1, 2, AddressingMode::NoneAddressing),
+
+        OpCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new(0xad, "LDA", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0xbd, "LDA", 3, 4, AddressingMode::Absolute_X),
+        OpCode::new(0xb9, "LDA", 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new(0xa1, "LDA", 2, 6, AddressingMode::Indirect_X),
+        OpCode::new(0xa1, "LDA", 2, 5, AddressingMode::Indirect_Y),
+
+        OpCode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new(0x8d, "STA", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x9d, "STA", 3, 5, AddressingMode::Absolute_X),
+        OpCode::new(0x99, "STA", 3, 5, AddressingMode::Absolute_Y),
+        OpCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X),
+        OpCode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y),
+    ];
 }
 
 impl CPU {
@@ -62,7 +90,7 @@ impl CPU {
             AddressingMode::Indirect_X => {
                 let base = self.mem_read(self.program_counter);
 
-                let ptr: u8 = (base as u8).wrapping_add(self.register_x);
+                let ptr: u8 = base.wrapping_add(self.register_x);
                 let lo = self.mem_read(ptr as u16);
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
                 (hi as u16) << 8 | (lo as u16)
@@ -71,7 +99,7 @@ impl CPU {
                 let base = self.mem_read(self.program_counter);
 
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
@@ -81,12 +109,17 @@ impl CPU {
             }
         }
     }
+
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a);
     }
     fn tax(&mut self) {
         self.register_x = self.register_a;
@@ -149,23 +182,23 @@ impl CPU {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
-            match code {
-                0xA9 => {
-                    self.lda(&AddressingMode::Immediate);
-                    self.program_counter += 1;
+            let operation = CPU_OPS_CODES.iter().find(|op| op.opcode == code);
+
+            match operation {
+                Some(opcode) => {
+                    match opcode.name {
+                        "LDA" => self.lda(&opcode.addressing_mode),
+                        "STA" => self.sta(&opcode.addressing_mode),
+                        "TAX" => self.tax(),
+                        "INX" => self.inx(),
+                        "BRK" => return,
+                        _ => panic!("CPU instruction {} not implemented", opcode.name),
+                    }
+                    self.program_counter += (opcode.bytes - 1) as u16;
                 }
-                0xA5 => {
-                    self.lda(&AddressingMode::ZeroPage);
-                    self.program_counter += 1;
+                None => {
+                    panic!("Unknown opcode {:#x}", code);
                 }
-                0xAD => {
-                    self.lda(&AddressingMode::Absolute);
-                    self.program_counter += 2;
-                }
-                0xAA => self.tax(),
-                0xE8 => self.inx(),
-                0x00 => return,
-                _ => todo!()
             }
         }
     }
