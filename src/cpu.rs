@@ -56,6 +56,15 @@ lazy_static! {
         OpCode::new(0x79, "ADC", 3, 4, AddressingMode::Absolute_Y),
         OpCode::new(0x61, "ADC", 2, 6, AddressingMode::Indirect_X),
         OpCode::new(0x71, "ADC", 2, 5, AddressingMode::Indirect_Y),
+
+        OpCode::new(0x29, "AND", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x25, "AND", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x35, "AND", 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new(0x55, "AND", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x65, "AND", 3, 4, AddressingMode::Absolute_X),
+        OpCode::new(0x75, "AND", 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new(0x29, "AND", 2, 6, AddressingMode::Indirect_X),
+        OpCode::new(0x25, "AND", 2, 5, AddressingMode::Indirect_Y),
     ];
 }
 
@@ -167,7 +176,7 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
-        let result = self.register_a & value;
+        self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
     }
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -231,6 +240,7 @@ impl CPU {
                         "LDA" => self.lda(&opcode.addressing_mode),
                         "STA" => self.sta(&opcode.addressing_mode),
                         "ADC" => self.adc(&opcode.addressing_mode),
+                        "AND" => self.and(&opcode.addressing_mode),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,
@@ -425,6 +435,35 @@ mod test {
             cpu.register_a = 0x50;
             cpu.load_and_run(vec![0x69, 0x50, 0x00]);
             assert_eq!(cpu.status & 0b0100_0000, 0b0100_0000);
+        }
+    }
+    mod test_and {
+        use crate::cpu::CPU;
+
+        #[test]
+        fn test_and_basic() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0b1111_0000;
+            cpu.load_and_run(vec![0x29, 0b0000_1111, 0x00]);
+            assert_eq!(cpu.register_a, 0b0000_0000);
+        }
+
+        #[test]
+        fn test_and_zero_flag() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0xFF;
+            cpu.load_and_run(vec![0x29, 0x00, 0x00]);
+            assert_eq!(cpu.register_a, 0x00);
+            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
+        }
+
+        #[test]
+        fn test_and_negative_flag() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0xFF;
+            cpu.load_and_run(vec![0x29, 0b1000_0000, 0x00]);
+            assert_eq!(cpu.register_a, 0b1000_0000);
+            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
         }
     }
 }
