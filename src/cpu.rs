@@ -47,6 +47,15 @@ lazy_static! {
         OpCode::new(0x99, "STA", 3, 5, AddressingMode::Absolute_Y),
         OpCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X),
         OpCode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y),
+
+        OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPage_X),
+        OpCode::new(0x6d, "ADC", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x7d, "ADC", 3, 4, AddressingMode::Absolute_X),
+        OpCode::new(0x79, "ADC", 3, 4, AddressingMode::Absolute_Y),
+        OpCode::new(0x61, "ADC", 2, 6, AddressingMode::Indirect_X),
+        OpCode::new(0x71, "ADC", 2, 5, AddressingMode::Indirect_Y),
     ];
 }
 
@@ -129,6 +138,38 @@ impl CPU {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
     }
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        let result = self.register_a as u16
+            + value as u16
+            + (self.status & 0b0000_0001) as u16;
+
+        if result > 0xFF {
+            self.status |= 0b0000_0001;
+        } else {
+            self.status &= 0b1111_1110;
+        }
+
+        let a = self.register_a;
+        let result8 = (result & 0xFF) as u8;
+        if (a ^ value) & 0x80 == 0 && (a ^ result8) & 0x80 != 0 {
+            self.status |= 0b0100_0000;
+        } else {
+            self.status &= 0b1011_1111;
+        }
+
+        self.register_a = result8;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        let result = self.register_a & value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.status |= 0b0000_0010;
@@ -189,6 +230,7 @@ impl CPU {
                     match opcode.name {
                         "LDA" => self.lda(&opcode.addressing_mode),
                         "STA" => self.sta(&opcode.addressing_mode),
+                        "ADC" => self.adc(&opcode.addressing_mode),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,
@@ -219,7 +261,6 @@ mod test {
             assert_eq!(cpu.status & 0b0000_0010, 0);
             assert_eq!(cpu.status & 0b1000_0000, 0);
         }
-
         #[test]
         fn test_lda_sets_zero_flag() {
             let mut cpu = CPU::new();
@@ -229,7 +270,6 @@ mod test {
             assert_eq!(cpu.status & 0b0000_0010, 0b10);
             assert_eq!(cpu.status & 0b1000_0000, 0);
         }
-
         #[test]
         fn test_lda_sets_negative_flag() {
             let mut cpu = CPU::new();
@@ -239,7 +279,6 @@ mod test {
             assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
             assert_eq!(cpu.status & 0b0000_0010, 0);
         }
-
         #[test]
         fn test_lda_zero_page() {
             let mut cpu = CPU::new();
@@ -250,7 +289,6 @@ mod test {
             assert_eq!(cpu.status & 0b0000_0010, 0);
             assert_eq!(cpu.status & 0b1000_0000, 0);
         }
-
         #[test]
         fn test_lda_zero_page_x() {
             let mut cpu = CPU::new();
@@ -260,7 +298,6 @@ mod test {
 
             assert_eq!(cpu.register_a, 0x99);
         }
-
         #[test]
         fn test_lda_absolute() {
             let mut cpu = CPU::new();
@@ -269,7 +306,6 @@ mod test {
 
             assert_eq!(cpu.register_a, 0x7F);
         }
-
         #[test]
         fn test_lda_absolute_x() {
             let mut cpu = CPU::new();
@@ -279,7 +315,6 @@ mod test {
 
             assert_eq!(cpu.register_a, 0x8A);
         }
-
         #[test]
         fn test_lda_absolute_y() {
             let mut cpu = CPU::new();
@@ -289,7 +324,6 @@ mod test {
 
             assert_eq!(cpu.register_a, 0xB7);
         }
-
         #[test]
         fn test_lda_indirect_x() {
             let mut cpu = CPU::new();
@@ -301,7 +335,6 @@ mod test {
 
             assert_eq!(cpu.register_a, 0xFE);
         }
-
         #[test]
         fn test_lda_indirect_y() {
             let mut cpu = CPU::new();
@@ -355,5 +388,43 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1);
+    }
+    mod test_adc {
+        use crate::cpu::CPU;
+
+        #[test]
+        fn test_adc_carry_flag() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0xFF;
+            cpu.load_and_run(vec![0x69, 0x01, 0x00]);
+            assert_eq!(cpu.register_a, 0x00);
+            assert_eq!(cpu.status & 0b0000_0001, 1);
+        }
+
+        #[test]
+        fn test_adc_zero_flag() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x00;
+            cpu.load_and_run(vec![0x69, 0x00, 0x00]);
+            assert_eq!(cpu.register_a, 0x00);
+            assert_eq!(cpu.status & 0b0000_0010, 0b10);
+        }
+
+        #[test]
+        fn test_adc_with_carry() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x50;
+            cpu.status |= 0b0000_0001;
+            cpu.load_and_run(vec![0x69, 0x50, 0x00]);
+            assert_eq!(cpu.register_a, 0xA1);
+        }
+
+        #[test]
+        fn test_adc_overflow_flag() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x50;
+            cpu.load_and_run(vec![0x69, 0x50, 0x00]);
+            assert_eq!(cpu.status & 0b0100_0000, 0b0100_0000);
+        }
     }
 }
