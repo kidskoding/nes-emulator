@@ -22,6 +22,7 @@ pub enum AddressingMode {
     Absolute_Y,
     Indirect_X,
     Indirect_Y,
+    Accumulator,
     NoneAddressing,
 }
 
@@ -65,6 +66,12 @@ lazy_static! {
         OpCode::new(0x75, "AND", 3, 4, AddressingMode::Absolute_Y),
         OpCode::new(0x29, "AND", 2, 6, AddressingMode::Indirect_X),
         OpCode::new(0x25, "AND", 2, 5, AddressingMode::Indirect_Y),
+               
+        OpCode::new(0x0A, "ASL", 1, 2, AddressingMode::Accumulator),
+        OpCode::new(0x06, "ASL", 1, 2, AddressingMode::ZeroPage),
+        OpCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X),
+        OpCode::new(0x0E, "ASL", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x1E, "ASL", 3, 7, AddressingMode::Absolute_X),
     ];
 }
 
@@ -80,30 +87,30 @@ impl CPU {
         }
     }
 
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> Option<u16> {
         match mode {
-            AddressingMode::Immediate => self.program_counter,
-            AddressingMode::ZeroPage  => self.mem_read(self.program_counter) as u16,
-            AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
+            AddressingMode::Immediate => Some(self.program_counter),
+            AddressingMode::ZeroPage  => Some(self.mem_read(self.program_counter) as u16),
+            AddressingMode::Absolute => Some(self.mem_read_u16(self.program_counter)),
             AddressingMode::ZeroPage_X => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_x) as u16;
-                addr
+                Some(addr)
             }
             AddressingMode::ZeroPage_Y => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_y) as u16;
-                addr
+                Some(addr)
             }
             AddressingMode::Absolute_X => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_x as u16);
-                addr
+                Some(addr)
             }
             AddressingMode::Absolute_Y => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_y as u16);
-                addr
+                Some(addr)
             }
             AddressingMode::Indirect_X => {
                 let base = self.mem_read(self.program_counter);
@@ -111,7 +118,7 @@ impl CPU {
                 let ptr: u8 = base.wrapping_add(self.register_x);
                 let lo = self.mem_read(ptr as u16);
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
-                (hi as u16) << 8 | (lo as u16)
+                Some((hi as u16) << 8 | (lo as u16))
             }
             AddressingMode::Indirect_Y => {
                 let base = self.mem_read(self.program_counter);
@@ -120,8 +127,9 @@ impl CPU {
                 let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
-                deref
+                Some(deref)
             }
+            AddressingMode::Accumulator => None,
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
             }
@@ -130,14 +138,14 @@ impl CPU {
 
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr);
+        let value = self.mem_read(addr.unwrap());
 
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
     }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        self.mem_write(addr, self.register_a);
+        self.mem_write(addr.unwrap(), self.register_a);
     }
     fn tax(&mut self) {
         self.register_x = self.register_a;
@@ -149,7 +157,7 @@ impl CPU {
     }
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr);
+        let value = self.mem_read(addr.unwrap());
 
         let result = self.register_a as u16
             + value as u16
@@ -174,10 +182,23 @@ impl CPU {
     }
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr);
+        let value = self.mem_read(addr.unwrap());
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+    fn asl(&mut self, mode: &AddressingMode) {
+        if let Some(addr) = self.get_operand_address(mode) {
+            let mut value = self.mem_read(addr);
+            self.status = (self.status & 0b1111_1110) | ((value >> 7) & 1);
+            value <<= 1;
+            self.mem_write(addr, value);
+            self.update_zero_and_negative_flags(value);
+        } else {
+            self.status = (self.status & 0b1111_1110) | ((self.register_a >> 7) & 1);
+            self.register_a <<= 1;
+            self.update_zero_and_negative_flags(self.register_a);
+        }
     }
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -241,6 +262,7 @@ impl CPU {
                         "STA" => self.sta(&opcode.addressing_mode),
                         "ADC" => self.adc(&opcode.addressing_mode),
                         "AND" => self.and(&opcode.addressing_mode),
+                        "ASL" => self.asl(&opcode.addressing_mode),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,
@@ -357,6 +379,7 @@ mod test {
             assert_eq!(cpu.register_a, 0x7E);
         }
     }
+    
     mod test_tax {
         use crate::cpu::CPU;
 
@@ -369,6 +392,7 @@ mod test {
             assert_eq!(cpu.register_x, 10);
         }
     }
+    
     mod test_inx {
         use crate::cpu::CPU;
 
@@ -392,6 +416,7 @@ mod test {
             assert_eq!(cpu.register_x, 1);
         }
     }
+    
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
@@ -399,6 +424,7 @@ mod test {
 
         assert_eq!(cpu.register_x, 0xc1);
     }
+    
     mod test_adc {
         use crate::cpu::CPU;
 
@@ -437,6 +463,7 @@ mod test {
             assert_eq!(cpu.status & 0b0100_0000, 0b0100_0000);
         }
     }
+    
     mod test_and {
         use crate::cpu::CPU;
 
@@ -464,6 +491,80 @@ mod test {
             cpu.load_and_run(vec![0x29, 0b1000_0000, 0x00]);
             assert_eq!(cpu.register_a, 0b1000_0000);
             assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
+        }
+    }
+    
+    mod test_asl {
+        use crate::cpu::CPU;
+
+        #[test]
+        fn test_asl_normal() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0b0100_0001;
+
+            cpu.load_and_run(vec![0x0a]);
+
+            assert_eq!(cpu.register_a, 0b1000_0010);
+            assert_eq!(cpu.status & 0b0000_0010, 0);
+            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
+            assert_eq!(cpu.status & 0b0000_0100, 0);
+        }
+
+        #[test]
+        fn test_asl_zero() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x00;
+
+            cpu.load_and_run(vec![0x0a]);
+
+            assert_eq!(cpu.register_a, 0x00);
+            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
+            assert_eq!(cpu.status & 0b1000_0000, 0);
+            assert_eq!(cpu.status & 0b0000_0100, 0);
+        }
+
+        #[test]
+        fn test_asl_carry() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x80;
+
+            cpu.load_and_run(vec![0x0a]);
+
+            assert_eq!(cpu.register_a, 0x00);
+            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
+            assert_eq!(cpu.status & 0b1000_0000, 0);
+            assert_eq!(cpu.status & 0b0000_0001, 0b0000_0001);
+        }
+
+        #[test]
+        fn test_asl_negative() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0x7F;
+
+            cpu.load_and_run(vec![0x0a]);
+
+            assert_eq!(cpu.register_a, 0xFE);
+            assert_eq!(cpu.status & 0b0000_0010, 0);
+            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
+            assert_eq!(cpu.status & 0b0000_0100, 0);
+        }
+
+        #[test]
+        fn test_asl_multiple_shifts() {
+            let mut cpu = CPU::new();
+            cpu.register_a = 0b0100_0001;
+
+            cpu.load_and_run(vec![0x0a]); 
+            assert_eq!(cpu.register_a, 0b1000_0010);
+
+            cpu.load_and_run(vec![0x0a]);
+            assert_eq!(cpu.register_a, 0b0000_0100);
+
+            cpu.load_and_run(vec![0x0a]);
+            assert_eq!(cpu.register_a, 0b0000_1000);
+
+            cpu.load_and_run(vec![0x0a]);
+            assert_eq!(cpu.register_a, 0b0001_0000);
         }
     }
 }
