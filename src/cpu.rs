@@ -23,6 +23,7 @@ pub enum AddressingMode {
     Indirect_X,
     Indirect_Y,
     Accumulator,
+    Relative,
     NoneAddressing,
 }
 
@@ -66,12 +67,14 @@ lazy_static! {
         OpCode::new(0x75, "AND", 3, 4, AddressingMode::Absolute_Y),
         OpCode::new(0x29, "AND", 2, 6, AddressingMode::Indirect_X),
         OpCode::new(0x25, "AND", 2, 5, AddressingMode::Indirect_Y),
-               
+
         OpCode::new(0x0A, "ASL", 1, 2, AddressingMode::Accumulator),
         OpCode::new(0x06, "ASL", 1, 2, AddressingMode::ZeroPage),
         OpCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X),
         OpCode::new(0x0E, "ASL", 3, 6, AddressingMode::Absolute),
         OpCode::new(0x1E, "ASL", 3, 7, AddressingMode::Absolute_X),
+
+        OpCode::new(0x90, "BCC", 2, 2, AddressingMode::Relative),
     ];
 }
 
@@ -130,6 +133,7 @@ impl CPU {
                 Some(deref)
             }
             AddressingMode::Accumulator => None,
+            AddressingMode::Relative => None,
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
             }
@@ -200,6 +204,15 @@ impl CPU {
             self.update_zero_and_negative_flags(self.register_a);
         }
     }
+    fn bcc(&mut self) {
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+
+        if self.status & 0b0000_0001 == 0 {
+            self.program_counter = self.program_counter.wrapping_add(displacement as u16);
+        }
+        self.program_counter = self.program_counter.wrapping_add(1);
+    }
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.status |= 0b0000_0010;
@@ -217,7 +230,7 @@ impl CPU {
     fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
-    fn mem_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.memory[addr as usize] = data;
     }
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
@@ -263,6 +276,7 @@ impl CPU {
                         "ADC" => self.adc(&opcode.addressing_mode),
                         "AND" => self.and(&opcode.addressing_mode),
                         "ASL" => self.asl(&opcode.addressing_mode),
+                        "BCC" => self.bcc(),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,
@@ -281,290 +295,11 @@ impl CPU {
 mod test {
     use crate::cpu::CPU;
 
-    mod test_lda {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_lda_immediate_load_data() {
-            let mut cpu = CPU::new();
-            cpu.load_and_run(vec![0xA9, 0x05, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x05);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-        }
-        #[test]
-        fn test_lda_sets_zero_flag() {
-            let mut cpu = CPU::new();
-            cpu.load_and_run(vec![0xA9, 0x00, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0010, 0b10);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-        }
-        #[test]
-        fn test_lda_sets_negative_flag() {
-            let mut cpu = CPU::new();
-            cpu.load_and_run(vec![0xA9, 0x80, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x80);
-            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-        }
-        #[test]
-        fn test_lda_zero_page() {
-            let mut cpu = CPU::new();
-            cpu.mem_write(0x10, 0x42);
-            cpu.load_and_run(vec![0xA5, 0x10, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x42);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-        }
-        #[test]
-        fn test_lda_zero_page_x() {
-            let mut cpu = CPU::new();
-            cpu.register_x = 0x01;
-            cpu.mem_write(0x11, 0x99);
-            cpu.load_and_run(vec![0xB5, 0x10, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x99);
-        }
-        #[test]
-        fn test_lda_absolute() {
-            let mut cpu = CPU::new();
-            cpu.mem_write(0x1234, 0x7F);
-            cpu.load_and_run(vec![0xAD, 0x34, 0x12, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x7F);
-        }
-        #[test]
-        fn test_lda_absolute_x() {
-            let mut cpu = CPU::new();
-            cpu.register_x = 0x01;
-            cpu.mem_write(0x1235, 0x8A);
-            cpu.load_and_run(vec![0xBD, 0x34, 0x12, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x8A);
-        }
-        #[test]
-        fn test_lda_absolute_y() {
-            let mut cpu = CPU::new();
-            cpu.register_y = 0x01;
-            cpu.mem_write(0x1235, 0xB7);
-            cpu.load_and_run(vec![0xB9, 0x34, 0x12, 0x00]);
-
-            assert_eq!(cpu.register_a, 0xB7);
-        }
-        #[test]
-        fn test_lda_indirect_x() {
-            let mut cpu = CPU::new();
-            cpu.register_x = 0x04;
-            cpu.mem_write(0x10, 0x00);
-            cpu.mem_write(0x11, 0x20);
-            cpu.mem_write(0x2000, 0xFE);
-            cpu.load_and_run(vec![0xA1, 0x0C, 0x00]);
-
-            assert_eq!(cpu.register_a, 0xFE);
-        }
-        #[test]
-        fn test_lda_indirect_y() {
-            let mut cpu = CPU::new();
-            cpu.register_y = 0x01;
-            cpu.mem_write(0x10, 0x00);
-            cpu.mem_write(0x11, 0x20);
-            cpu.mem_write(0x2001, 0x7E);
-            cpu.load_and_run(vec![0xB1, 0x10, 0x00]);
-
-            assert_eq!(cpu.register_a, 0x7E);
-        }
-    }
-    
-    mod test_tax {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_0xaa_tax_move_a_to_x() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 10;
-            cpu.load_and_run(vec![0xaa, 0x00]);
-
-            assert_eq!(cpu.register_x, 10);
-        }
-    }
-    
-    mod test_inx {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_inx() {
-            let mut cpu = CPU::new();
-            cpu.register_x = 0x01;
-
-            cpu.load_and_run(vec![0xe8, 0x00]);
-
-            assert_eq!(cpu.register_x, 0x02);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-        }
-        #[test]
-        fn test_inx_overflow() {
-            let mut cpu = CPU::new();
-            cpu.register_x = 0xff;
-            cpu.load_and_run(vec![0xe8, 0xe8, 0x00]);
-
-            assert_eq!(cpu.register_x, 1);
-        }
-    }
-    
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1);
-    }
-    
-    mod test_adc {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_adc_carry_flag() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0xFF;
-            cpu.load_and_run(vec![0x69, 0x01, 0x00]);
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0001, 1);
-        }
-
-        #[test]
-        fn test_adc_zero_flag() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x00;
-            cpu.load_and_run(vec![0x69, 0x00, 0x00]);
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0010, 0b10);
-        }
-
-        #[test]
-        fn test_adc_with_carry() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x50;
-            cpu.status |= 0b0000_0001;
-            cpu.load_and_run(vec![0x69, 0x50, 0x00]);
-            assert_eq!(cpu.register_a, 0xA1);
-        }
-
-        #[test]
-        fn test_adc_overflow_flag() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x50;
-            cpu.load_and_run(vec![0x69, 0x50, 0x00]);
-            assert_eq!(cpu.status & 0b0100_0000, 0b0100_0000);
-        }
-    }
-    
-    mod test_and {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_and_basic() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0b1111_0000;
-            cpu.load_and_run(vec![0x29, 0b0000_1111, 0x00]);
-            assert_eq!(cpu.register_a, 0b0000_0000);
-        }
-
-        #[test]
-        fn test_and_zero_flag() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0xFF;
-            cpu.load_and_run(vec![0x29, 0x00, 0x00]);
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
-        }
-
-        #[test]
-        fn test_and_negative_flag() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0xFF;
-            cpu.load_and_run(vec![0x29, 0b1000_0000, 0x00]);
-            assert_eq!(cpu.register_a, 0b1000_0000);
-            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
-        }
-    }
-    
-    mod test_asl {
-        use crate::cpu::CPU;
-
-        #[test]
-        fn test_asl_normal() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0b0100_0001;
-
-            cpu.load_and_run(vec![0x0a]);
-
-            assert_eq!(cpu.register_a, 0b1000_0010);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
-            assert_eq!(cpu.status & 0b0000_0100, 0);
-        }
-
-        #[test]
-        fn test_asl_zero() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x00;
-
-            cpu.load_and_run(vec![0x0a]);
-
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-            assert_eq!(cpu.status & 0b0000_0100, 0);
-        }
-
-        #[test]
-        fn test_asl_carry() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x80;
-
-            cpu.load_and_run(vec![0x0a]);
-
-            assert_eq!(cpu.register_a, 0x00);
-            assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
-            assert_eq!(cpu.status & 0b1000_0000, 0);
-            assert_eq!(cpu.status & 0b0000_0001, 0b0000_0001);
-        }
-
-        #[test]
-        fn test_asl_negative() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0x7F;
-
-            cpu.load_and_run(vec![0x0a]);
-
-            assert_eq!(cpu.register_a, 0xFE);
-            assert_eq!(cpu.status & 0b0000_0010, 0);
-            assert_eq!(cpu.status & 0b1000_0000, 0b1000_0000);
-            assert_eq!(cpu.status & 0b0000_0100, 0);
-        }
-
-        #[test]
-        fn test_asl_multiple_shifts() {
-            let mut cpu = CPU::new();
-            cpu.register_a = 0b0100_0001;
-
-            cpu.load_and_run(vec![0x0a]); 
-            assert_eq!(cpu.register_a, 0b1000_0010);
-
-            cpu.load_and_run(vec![0x0a]);
-            assert_eq!(cpu.register_a, 0b0000_0100);
-
-            cpu.load_and_run(vec![0x0a]);
-            assert_eq!(cpu.register_a, 0b0000_1000);
-
-            cpu.load_and_run(vec![0x0a]);
-            assert_eq!(cpu.register_a, 0b0001_0000);
-        }
     }
 }

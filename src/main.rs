@@ -1,5 +1,4 @@
-mod cpu;
-mod opcode;
+#![allow(warnings)]
 
 fn main() {
 
