@@ -1,5 +1,4 @@
-use crate::opcode::OpCode;
-use lazy_static::lazy_static;
+use crate::opcode::{OpCode, CPU_OPCODES};
 
 pub struct CPU {
     pub register_a: u8,
@@ -25,57 +24,6 @@ pub enum AddressingMode {
     Accumulator,
     Relative,
     NoneAddressing,
-}
-
-lazy_static! {
-    pub static ref CPU_OPS_CODES: Vec<OpCode<'static>> = vec![
-        OpCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing),
-        OpCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
-        OpCode::new(0xE8, "INX", 1, 2, AddressingMode::NoneAddressing),
-
-        OpCode::new(0xa9, "LDA", 2, 2, AddressingMode::Immediate),
-        OpCode::new(0xa5, "LDA", 2, 3, AddressingMode::ZeroPage),
-        OpCode::new(0xb5, "LDA", 2, 4, AddressingMode::ZeroPage_X),
-        OpCode::new(0xad, "LDA", 3, 4, AddressingMode::Absolute),
-        OpCode::new(0xbd, "LDA", 3, 4, AddressingMode::Absolute_X),
-        OpCode::new(0xb9, "LDA", 3, 4, AddressingMode::Absolute_Y),
-        OpCode::new(0xa1, "LDA", 2, 6, AddressingMode::Indirect_X),
-        OpCode::new(0xb1, "LDA", 2, 5, AddressingMode::Indirect_Y),
-
-        OpCode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage),
-        OpCode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPage_X),
-        OpCode::new(0x8d, "STA", 3, 4, AddressingMode::Absolute),
-        OpCode::new(0x9d, "STA", 3, 5, AddressingMode::Absolute_X),
-        OpCode::new(0x99, "STA", 3, 5, AddressingMode::Absolute_Y),
-        OpCode::new(0x81, "STA", 2, 6, AddressingMode::Indirect_X),
-        OpCode::new(0x91, "STA", 2, 6, AddressingMode::Indirect_Y),
-
-        OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
-        OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
-        OpCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPage_X),
-        OpCode::new(0x6d, "ADC", 3, 4, AddressingMode::Absolute),
-        OpCode::new(0x7d, "ADC", 3, 4, AddressingMode::Absolute_X),
-        OpCode::new(0x79, "ADC", 3, 4, AddressingMode::Absolute_Y),
-        OpCode::new(0x61, "ADC", 2, 6, AddressingMode::Indirect_X),
-        OpCode::new(0x71, "ADC", 2, 5, AddressingMode::Indirect_Y),
-
-        OpCode::new(0x29, "AND", 2, 2, AddressingMode::Immediate),
-        OpCode::new(0x25, "AND", 2, 3, AddressingMode::ZeroPage),
-        OpCode::new(0x35, "AND", 2, 4, AddressingMode::ZeroPage_X),
-        OpCode::new(0x55, "AND", 3, 4, AddressingMode::Absolute),
-        OpCode::new(0x65, "AND", 3, 4, AddressingMode::Absolute_X),
-        OpCode::new(0x75, "AND", 3, 4, AddressingMode::Absolute_Y),
-        OpCode::new(0x29, "AND", 2, 6, AddressingMode::Indirect_X),
-        OpCode::new(0x25, "AND", 2, 5, AddressingMode::Indirect_Y),
-
-        OpCode::new(0x0A, "ASL", 1, 2, AddressingMode::Accumulator),
-        OpCode::new(0x06, "ASL", 1, 2, AddressingMode::ZeroPage),
-        OpCode::new(0x16, "ASL", 2, 5, AddressingMode::ZeroPage_X),
-        OpCode::new(0x0E, "ASL", 3, 6, AddressingMode::Absolute),
-        OpCode::new(0x1E, "ASL", 3, 7, AddressingMode::Absolute_X),
-
-        OpCode::new(0x90, "BCC", 2, 2, AddressingMode::Relative),
-    ];
 }
 
 impl CPU {
@@ -205,12 +153,20 @@ impl CPU {
         }
     }
     fn bcc(&mut self) {
-        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        let displacement = self.mem_read(self.program_counter) as i8;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         if self.status & 0b0000_0001 == 0 {
+            self.program_counter = self.program_counter.wrapping_add(displacement as i16 as u16);
+        }
+    }
+    fn bcs(&mut self) {
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter = self.program_counter.wrapping_add(1);
+
+        if self.status & 0b0000_0001 != 0 {
             self.program_counter = self.program_counter.wrapping_add(displacement as u16);
         }
-        self.program_counter = self.program_counter.wrapping_add(1);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -235,15 +191,15 @@ impl CPU {
     }
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
-        let hi = self.mem_read(pos + 1) as u16;
+        let hi = self.mem_read(pos.wrapping_add(1)) as u16;
         (hi << 8) | lo
     }
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+    /* fn mem_write_u16(&mut self, pos: u16, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
-    }
+    } */
 
     pub fn reset(&mut self) {
         self.register_a = 0;
@@ -266,7 +222,7 @@ impl CPU {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
-            let operation = CPU_OPS_CODES.iter().find(|op| op.opcode == code);
+            let operation = CPU_OPCODES.iter().find(|op| op.opcode == code);
 
             match operation {
                 Some(opcode) => {
@@ -277,6 +233,7 @@ impl CPU {
                         "AND" => self.and(&opcode.addressing_mode),
                         "ASL" => self.asl(&opcode.addressing_mode),
                         "BCC" => self.bcc(),
+                        "BCS" => self.bcs(),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,

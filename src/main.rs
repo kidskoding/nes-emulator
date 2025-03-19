@@ -1,5 +1,4 @@
 #![allow(warnings)]
-
 fn main() {
 
 }
