@@ -153,16 +153,14 @@ impl CPU {
         }
     }
     fn bcc(&mut self) {
-        let displacement = self.mem_read(self.program_counter) as i8;
-        self.program_counter = self.program_counter.wrapping_add(1);
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
 
         if self.status & 0b0000_0001 == 0 {
-            self.program_counter = self.program_counter.wrapping_add(displacement as i16 as u16);
+            self.program_counter = self.program_counter.wrapping_add(displacement as u16);
         }
     }
     fn bcs(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
-        self.program_counter = self.program_counter.wrapping_add(1);
 
         if self.status & 0b0000_0001 != 0 {
             self.program_counter = self.program_counter.wrapping_add(displacement as u16);
