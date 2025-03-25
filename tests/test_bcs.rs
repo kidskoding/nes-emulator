@@ -7,8 +7,7 @@ mod bcs_test {
         cpu.status = 0b0000_0000;
 
         cpu.load_and_run(vec![0x90, 0x05, 0x0a]);
-
-        assert_eq!(cpu.program_counter, 0x8008);
+        assert_eq!(cpu.program_counter, 0x8009);
     }
 
     #[test]

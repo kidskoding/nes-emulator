@@ -75,5 +75,7 @@ lazy_static! {
         OpCode::new(0x90, "BCC", 2, 2, AddressingMode::Relative),
 
         OpCode::new(0xB0, "BCS", 2, 2, AddressingMode::Relative),
+
+        OpCode::new(0xF0, "BEQ", 2, 2, AddressingMode::Relative),
     ];
 }

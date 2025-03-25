@@ -1,4 +1,4 @@
-use crate::opcode::{OpCode, CPU_OPCODES};
+use crate::opcode::CPU_OPCODES;
 
 pub struct CPU {
     pub register_a: u8,
@@ -156,14 +156,27 @@ impl CPU {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
 
         if self.status & 0b0000_0001 == 0 {
-            self.program_counter = self.program_counter.wrapping_add(displacement as u16);
+            self.program_counter = self.program_counter
+                .wrapping_add(1)
+                .wrapping_add(displacement as u16);
         }
     }
     fn bcs(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
 
         if self.status & 0b0000_0001 != 0 {
-            self.program_counter = self.program_counter.wrapping_add(displacement as u16);
+            self.program_counter = self.program_counter
+                .wrapping_add(1)
+                .wrapping_add(displacement as u16);
+        }
+    }
+    fn beq(&mut self) {
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+
+        if self.status & 0b0000_0010 != 0 {
+            self.program_counter = self.program_counter
+                .wrapping_add(1)
+                .wrapping_add(displacement as u16);
         }
     }
 
@@ -232,6 +245,7 @@ impl CPU {
                         "ASL" => self.asl(&opcode.addressing_mode),
                         "BCC" => self.bcc(),
                         "BCS" => self.bcs(),
+                        "BEQ" => self.beq(),
                         "TAX" => self.tax(),
                         "INX" => self.inx(),
                         "BRK" => return,
