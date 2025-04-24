@@ -176,11 +176,6 @@ impl CPU {
                 self.program_counter.wrapping_add(displacement as u16)
         }
     }
-    /* fn bit(&mut self, mode: &AddressingMode) {
-        if let Some(addr) = self.get_operand_address(mode) {
-            let mut value = self.mem_read(addr);
-        }
-    } */
     fn bmi(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
         self.program_counter += 1;
