@@ -9,7 +9,7 @@ pub struct CPU {
     memory: [u8; 0xFFFF],
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -80,17 +80,14 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 Some(deref)
             }
-            AddressingMode::Accumulator => None,
-            AddressingMode::Relative => None,
-            AddressingMode::NoneAddressing => {
-                panic!("mode {:?} is not supported", mode);
-            }
+            AddressingMode::Accumulator | AddressingMode::Relative => None,
+            AddressingMode::NoneAddressing => panic!("mode {:?} is not supported", mode),
         }
     }
 
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr.unwrap());
+        let value: u8 = self.mem_read(addr.unwrap());
 
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
@@ -109,7 +106,7 @@ impl CPU {
     }
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr.unwrap());
+        let value: u8 = self.mem_read(addr.unwrap());
 
         let result = self.register_a as u16
             + value as u16
@@ -154,29 +151,43 @@ impl CPU {
     }
     fn bcc(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter += 1;
 
         if self.status & 0b0000_0001 == 0 {
-            self.program_counter = self.program_counter
-                .wrapping_add(1)
-                .wrapping_add(displacement as u16);
+            self.program_counter = 
+                self.program_counter.wrapping_add(displacement as u16)
         }
     }
     fn bcs(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter += 1;
 
         if self.status & 0b0000_0001 != 0 {
-            self.program_counter = self.program_counter
-                .wrapping_add(1)
-                .wrapping_add(displacement as u16);
+            self.program_counter = 
+                self.program_counter.wrapping_add(displacement as u16);
         }
     }
     fn beq(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter += 1;
 
         if self.status & 0b0000_0010 != 0 {
+            self.program_counter = 
+                self.program_counter.wrapping_add(displacement as u16)
+        }
+    }
+    /* fn bit(&mut self, mode: &AddressingMode) {
+        if let Some(addr) = self.get_operand_address(mode) {
+            let mut value = self.mem_read(addr);
+        }
+    } */
+    fn bmi(&mut self) {
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter += 1;
+
+        if self.status & 0b1000_0000 != 0 {
             self.program_counter = self.program_counter
-                .wrapping_add(1)
-                .wrapping_add(displacement as u16);
+                .wrapping_add(displacement as u16)
         }
     }
 
@@ -223,39 +234,40 @@ impl CPU {
         self.memory[0x8000 .. (0x8000 + program.len())].copy_from_slice(&program[..]);
         self.program_counter = 0x8000;
     }
-    pub fn load_and_run(&mut self, program: Vec<u8>) {
+    pub fn load_and_run(&mut self, program: Vec<u8>) -> Result<(), String> {
         self.load(program);
-        self.run();
+        self.run()?;
+        Ok(())
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), String> {
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
             let operation = CPU_OPCODES.iter().find(|op| op.opcode == code);
 
-            match operation {
-                Some(opcode) => {
-                    match opcode.name {
-                        "LDA" => self.lda(&opcode.addressing_mode),
-                        "STA" => self.sta(&opcode.addressing_mode),
-                        "ADC" => self.adc(&opcode.addressing_mode),
-                        "AND" => self.and(&opcode.addressing_mode),
-                        "ASL" => self.asl(&opcode.addressing_mode),
-                        "BCC" => self.bcc(),
-                        "BCS" => self.bcs(),
-                        "BEQ" => self.beq(),
-                        "TAX" => self.tax(),
-                        "INX" => self.inx(),
-                        "BRK" => return,
-                        _ => panic!("CPU instruction {} not implemented", opcode.name),
-                    }
+            if let Some(opcode) = operation {
+                match opcode.name {
+                    "LDA" => self.lda(&opcode.addressing_mode),
+                    "STA" => self.sta(&opcode.addressing_mode),
+                    "ADC" => self.adc(&opcode.addressing_mode),
+                    "AND" => self.and(&opcode.addressing_mode),
+                    "ASL" => self.asl(&opcode.addressing_mode),
+                    "BCC" => self.bcc(),
+                    "BCS" => self.bcs(),
+                    "BEQ" => self.beq(),
+                    "BMI" => self.bmi(),
+                    "BRK" => return Ok(()), 
+                    "TAX" => self.tax(),
+                    "INX" => self.inx(),
+                    _ => return Err(format!("CPU instruction {} not implemented", opcode.name)),
+                }
+                if opcode.addressing_mode != AddressingMode::Relative {
                     self.program_counter += (opcode.bytes - 1) as u16;
                 }
-                None => {
-                    panic!("Unknown opcode {:#x}", code);
-                }
+            } else {
+                return Err(format!("Unknown opcode {:#x}", code));
             }
         }
     }

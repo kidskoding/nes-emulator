@@ -8,6 +8,7 @@ pub struct OpCode<'a> {
     pub cycles: u8,
     pub addressing_mode: AddressingMode,
 }
+
 impl<'a> OpCode<'a> {
     pub fn new(opcode: u8,
                name: &'a str,
@@ -73,9 +74,12 @@ lazy_static! {
         OpCode::new(0x1E, "ASL", 3, 7, AddressingMode::Absolute_X),
 
         OpCode::new(0x90, "BCC", 2, 2, AddressingMode::Relative),
-
         OpCode::new(0xB0, "BCS", 2, 2, AddressingMode::Relative),
-
         OpCode::new(0xF0, "BEQ", 2, 2, AddressingMode::Relative),
+
+        // OpCode::new(0x24, "BIT", 2, 3, AddressingMode::ZeroPage),
+        // OpCode::new(0x2C, "BIT", 3, 4, AddressingMode::Absolute),
+
+        OpCode::new(0x30, "BMI", 2, 2, AddressingMode::Relative),
     ];
 }

@@ -6,7 +6,7 @@ mod test_beq {
         let mut cpu = CPU::new();
         cpu.status = 0b0000_0000;
         
-        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0x0A]);
+        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0x0A]).unwrap();
         assert_eq!(cpu.program_counter, 0x8005);
     }
 
@@ -15,7 +15,7 @@ mod test_beq {
         let mut cpu = CPU::new();
         cpu.status = 0b0000_0010;
         
-        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0x0A]);
-        assert_eq!(cpu.program_counter, 0x8007);
+        cpu.load_and_run(vec![0xF0, 0x03, 0xA9, 0x0A]).unwrap();
+        assert_eq!(cpu.program_counter, 0x8006);
     }
 }

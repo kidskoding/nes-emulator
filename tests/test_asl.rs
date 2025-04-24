@@ -6,7 +6,7 @@ mod test_asl {
         let mut cpu = CPU::new();
         cpu.register_a = 0b0100_0001;
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
 
         assert_eq!(cpu.register_a, 0b1000_0010);
         assert_eq!(cpu.status & 0b0000_0010, 0);
@@ -19,7 +19,7 @@ mod test_asl {
         let mut cpu = CPU::new();
         cpu.register_a = 0x00;
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
 
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
@@ -32,7 +32,7 @@ mod test_asl {
         let mut cpu = CPU::new();
         cpu.register_a = 0x80;
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
 
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.status & 0b0000_0010, 0b0000_0010);
@@ -45,7 +45,7 @@ mod test_asl {
         let mut cpu = CPU::new();
         cpu.register_a = 0x7F;
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
 
         assert_eq!(cpu.register_a, 0xFE);
         assert_eq!(cpu.status & 0b0000_0010, 0);
@@ -58,16 +58,16 @@ mod test_asl {
         let mut cpu = CPU::new();
         cpu.register_a = 0b0100_0001;
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
         assert_eq!(cpu.register_a, 0b1000_0010);
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
         assert_eq!(cpu.register_a, 0b0000_0100);
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
         assert_eq!(cpu.register_a, 0b0000_1000);
 
-        cpu.load_and_run(vec![0x0a]);
+        cpu.load_and_run(vec![0x0a]).unwrap();
         assert_eq!(cpu.register_a, 0b0001_0000);
     }
 }
