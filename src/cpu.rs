@@ -1,4 +1,4 @@
-use crate::opcode::CPU_OPCODES;
+use crate::{error::CPUError, opcode::CPU_OPCODES};
 
 pub struct CPU {
     pub register_a: u8,
@@ -81,20 +81,20 @@ impl CPU {
                 Some(deref)
             }
             AddressingMode::Accumulator | AddressingMode::Relative => None,
-            AddressingMode::NoneAddressing => panic!("mode {:?} is not supported", mode),
+            AddressingMode::NoneAddressing => panic!("{}", CPUError::InvalidAddressingMode(mode)),
         }
     }
 
     fn lda(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        let value: u8 = self.mem_read(addr.unwrap());
+        let addr = self.get_operand_address(mode).unwrap();
+        let value: u8 = self.mem_read(addr);
 
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
     }
     fn sta(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        self.mem_write(addr.unwrap(), self.register_a);
+        let addr = self.get_operand_address(mode).unwrap();
+        self.mem_write(addr, self.register_a);
     }
     fn tax(&mut self) {
         self.register_x = self.register_a;
@@ -105,8 +105,8 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
     fn adc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        let value: u8 = self.mem_read(addr.unwrap());
+        let addr = self.get_operand_address(mode).unwrap();
+        let value: u8 = self.mem_read(addr);
 
         let result = self.register_a as u16
             + value as u16
@@ -130,8 +130,8 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
     fn and(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr.unwrap());
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
@@ -176,13 +176,37 @@ impl CPU {
                 self.program_counter.wrapping_add(displacement as u16)
         }
     }
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+
+        let result = self.register_a & value;
+
+        if result == 0 {
+            self.status |= 0b0000_0010;
+        } else {
+            self.status &= 0b1111_1101;
+        }
+    
+        if value & 0b0100_0000 != 0 {
+            self.status |= 0b0100_0000;
+        } else {
+            self.status &= 0b1011_1111;
+        }
+    
+        if value & 0b1000_0000 != 0 {
+            self.status |= 0b1000_0000;
+        } else {
+            self.status &= 0b0111_1111;
+        }
+    }
     fn bmi(&mut self) {
         let displacement: i8 = self.mem_read(self.program_counter) as i8;
         self.program_counter += 1;
 
         if self.status & 0b1000_0000 != 0 {
-            self.program_counter = self.program_counter
-                .wrapping_add(displacement as u16)
+            self.program_counter = 
+                self.program_counter.wrapping_add(displacement as u16)
         }
     }
 
@@ -229,13 +253,13 @@ impl CPU {
         self.memory[0x8000 .. (0x8000 + program.len())].copy_from_slice(&program[..]);
         self.program_counter = 0x8000;
     }
-    pub fn load_and_run(&mut self, program: Vec<u8>) -> Result<(), String> {
+    pub fn load_and_run(&mut self, program: Vec<u8>) -> Result<(), CPUError> {
         self.load(program);
         self.run()?;
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), String> {
+    pub fn run(&mut self) -> Result<(), CPUError> {
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
@@ -252,17 +276,18 @@ impl CPU {
                     "BCC" => self.bcc(),
                     "BCS" => self.bcs(),
                     "BEQ" => self.beq(),
+                    "BIT" => self.bit(&opcode.addressing_mode),
                     "BMI" => self.bmi(),
                     "BRK" => return Ok(()), 
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
-                    _ => return Err(format!("CPU instruction {} not implemented", opcode.name)),
+                    _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
                 }
                 if opcode.addressing_mode != AddressingMode::Relative {
                     self.program_counter += (opcode.bytes - 1) as u16;
                 }
             } else {
-                return Err(format!("Unknown opcode {:#x}", code));
+                return Err(CPUError::UnknownOpcode(code));
             }
         }
     }
