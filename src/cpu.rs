@@ -209,6 +209,15 @@ impl CPU {
                 self.program_counter.wrapping_add(displacement as u16)
         }
     }
+    fn bne(&mut self) {
+        let displacement: i8 = self.mem_read(self.program_counter) as i8;
+        self.program_counter += 1;
+
+        if self.status & 0b0000_0010 == 0 {
+            self.program_counter = 
+                self.program_counter.wrapping_add(displacement as u16)
+        }
+    }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -278,6 +287,7 @@ impl CPU {
                     "BEQ" => self.beq(),
                     "BIT" => self.bit(&opcode.addressing_mode),
                     "BMI" => self.bmi(),
+                    "BNE" => self.bne(),
                     "BRK" => return Ok(()), 
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
