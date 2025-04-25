@@ -83,5 +83,6 @@ lazy_static! {
         OpCode::new(0x30, "BMI", 2, 2, AddressingMode::Relative),
         OpCode::new(0xD0, "BNE", 2, 2, AddressingMode::Relative),
         OpCode::new(0x10, "BPL", 2, 2, AddressingMode::Relative),
+        OpCode::new(0x50, "BVC", 2, 2, AddressingMode::Relative),
     ];
 }
