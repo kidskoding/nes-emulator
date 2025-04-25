@@ -21,6 +21,7 @@ pub enum AddressingMode {
     Absolute_Y,
     Indirect_X,
     Indirect_Y,
+    Implied,
     Accumulator,
     Relative,
     NoneAddressing,
@@ -80,7 +81,9 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 Some(deref)
             }
-            AddressingMode::Accumulator | AddressingMode::Relative => None,
+            AddressingMode::Accumulator 
+                | AddressingMode::Relative 
+                | AddressingMode::Implied => None,
             AddressingMode::NoneAddressing => panic!("{}", CPUError::InvalidAddressingMode(mode)),
         }
     }
@@ -319,6 +322,7 @@ impl CPU {
                     "BRK" => return Ok(()),
                     "BVC" => self.bvc(),
                     "BVS" => self.bvs(),
+                    "CLC" => self.status &= 0b1111_1110,
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
