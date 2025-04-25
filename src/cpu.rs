@@ -248,6 +248,20 @@ impl CPU {
                 self.program_counter.wrapping_add(displacement as u16)
         }
     }
+    fn cmp(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+
+        let result = self.register_a.wrapping_sub(value);
+
+        if self.register_a >= value {
+            self.status |= 0b0000_0001;
+        } else {
+            self.status &= 0b1111_1110;
+        }
+
+        self.update_zero_and_negative_flags(result);
+    }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -326,6 +340,7 @@ impl CPU {
                     "CLD" => self.status &= 0b1111_0111,
                     "CLI" => self.status &= 0b1111_1011,
                     "CLV" => self.status &= 0b1011_1111,
+                    "CMP" => self.cmp(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
