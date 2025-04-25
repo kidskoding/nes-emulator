@@ -262,6 +262,50 @@ impl CPU {
 
         self.update_zero_and_negative_flags(result);
     }
+    fn cpx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+
+        let result = self.register_x.wrapping_sub(value);
+
+        if self.register_x >= value {
+            self.status |= 0b0000_0001;
+        } else {
+            self.status &= 0b1111_1110;
+        }
+
+        self.update_zero_and_negative_flags(result);
+    }
+    fn cpy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+
+        let result = self.register_y.wrapping_sub(value);
+
+        if self.register_y >= value {
+            self.status |= 0b0000_0001;
+        } else {
+            self.status &= 0b1111_1110;
+        }
+
+        self.update_zero_and_negative_flags(result);
+    }
+    fn dec(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+        let result = value.wrapping_sub(1);
+        self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
+    }
+    fn dex(&mut self) {
+        self.register_x = self.register_x.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+    fn dey(&mut self) {
+        self.register_y = self.register_y.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -277,7 +321,7 @@ impl CPU {
         }
     }
 
-    fn mem_read(&self, addr: u16) -> u8 {
+    pub fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
     pub fn mem_write(&mut self, addr: u16, data: u8) {
@@ -341,6 +385,11 @@ impl CPU {
                     "CLI" => self.status &= 0b1111_1011,
                     "CLV" => self.status &= 0b1011_1111,
                     "CMP" => self.cmp(&opcode.addressing_mode),
+                    "CPX" => self.cpx(&opcode.addressing_mode),
+                    "CPY" => self.cpy(&opcode.addressing_mode),
+                    "DEC" => self.dec(&opcode.addressing_mode),
+                    "DEX" => self.dex(),
+                    "DEY" => self.dey(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
