@@ -14,13 +14,13 @@ pub struct CPU {
 pub enum AddressingMode {
     Immediate,
     ZeroPage,
-    ZeroPage_X,
-    ZeroPage_Y,
+    ZeroPageX,
+    ZeroPageY,
     Absolute,
-    Absolute_X,
-    Absolute_Y,
-    Indirect_X,
-    Indirect_Y,
+    AbsoluteX,
+    AbsoluteY,
+    IndirectX,
+    IndirectY,
     Implied,
     Accumulator,
     Relative,
@@ -44,27 +44,27 @@ impl CPU {
             AddressingMode::Immediate => Some(self.program_counter),
             AddressingMode::ZeroPage  => Some(self.mem_read(self.program_counter) as u16),
             AddressingMode::Absolute => Some(self.mem_read_u16(self.program_counter)),
-            AddressingMode::ZeroPage_X => {
+            AddressingMode::ZeroPageX => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_x) as u16;
                 Some(addr)
             }
-            AddressingMode::ZeroPage_Y => {
+            AddressingMode::ZeroPageY => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_y) as u16;
                 Some(addr)
             }
-            AddressingMode::Absolute_X => {
+            AddressingMode::AbsoluteX => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_x as u16);
                 Some(addr)
             }
-            AddressingMode::Absolute_Y => {
+            AddressingMode::AbsoluteY => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_y as u16);
                 Some(addr)
             }
-            AddressingMode::Indirect_X => {
+            AddressingMode::IndirectX => {
                 let base = self.mem_read(self.program_counter);
 
                 let ptr: u8 = base.wrapping_add(self.register_x);
@@ -72,7 +72,7 @@ impl CPU {
                 let hi = self.mem_read(ptr.wrapping_add(1) as u16);
                 Some((hi as u16) << 8 | (lo as u16))
             }
-            AddressingMode::Indirect_Y => {
+            AddressingMode::IndirectY => {
                 let base = self.mem_read(self.program_counter);
 
                 let lo = self.mem_read(base as u16);
@@ -305,6 +305,19 @@ impl CPU {
         self.register_y = self.register_y.wrapping_sub(1);
         self.update_zero_and_negative_flags(self.register_y);
     }
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+        self.register_a ^= value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let mut value = self.mem_read(addr);
+        value = value.wrapping_add(1);
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
+    }
 
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -361,7 +374,9 @@ impl CPU {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
-            let operation = CPU_OPCODES.iter().find(|op| op.opcode == code);
+            let operation = CPU_OPCODES
+                .iter()
+                .find(|op| op.opcode == code);
 
             if let Some(opcode) = operation {
                 match opcode.name {
@@ -390,6 +405,8 @@ impl CPU {
                     "DEC" => self.dec(&opcode.addressing_mode),
                     "DEX" => self.dex(),
                     "DEY" => self.dey(),
+                    "EOR" => self.eor(&opcode.addressing_mode),
+                    "INC" => self.inc(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
