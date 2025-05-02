@@ -128,6 +128,8 @@ lazy_static! {
         OpCode::new(0xE6, "INC", 2, 5, AddressingMode::ZeroPage),
         OpCode::new(0xF6, "INC", 2, 6, AddressingMode::ZeroPageX),
         OpCode::new(0xEE, "INC", 3, 6, AddressingMode::Absolute),
-        OpCode::new(0xFE, "INC", 3, 7, AddressingMode::AbsoluteX)
+        OpCode::new(0xFE, "INC", 3, 7, AddressingMode::AbsoluteX),
+
+        OpCode::new(0xC8, "INY", 1, 2, AddressingMode::Implied)
     ];
 }

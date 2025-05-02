@@ -318,6 +318,10 @@ impl CPU {
         self.mem_write(addr, value);
         self.update_zero_and_negative_flags(value);
     }
+    fn iny(&mut self) {
+        self.register_y = self.register_y.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_y); 
+    }
 
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -409,6 +413,7 @@ impl CPU {
                     "INC" => self.inc(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
+                    "INY" => self.iny(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
                 }
                 if opcode.addressing_mode != AddressingMode::Relative {
