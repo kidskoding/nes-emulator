@@ -9,7 +9,7 @@ pub struct CPU {
     memory: [u8; 0xFFFF],
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -19,6 +19,7 @@ pub enum AddressingMode {
     Absolute,
     AbsoluteX,
     AbsoluteY,
+    Indirect,
     IndirectX,
     IndirectY,
     Implied,
@@ -83,7 +84,8 @@ impl CPU {
             }
             AddressingMode::Accumulator 
                 | AddressingMode::Relative 
-                | AddressingMode::Implied => None,
+                | AddressingMode::Implied 
+                | AddressingMode::Indirect => None,
             AddressingMode::NoneAddressing => panic!("{}", CPUError::InvalidAddressingMode(mode)),
         }
     }
@@ -322,6 +324,28 @@ impl CPU {
         self.register_y = self.register_y.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_y); 
     }
+    
+    fn jmp<'a>(&'a mut self, mode: &'a AddressingMode) {
+        match mode {
+            AddressingMode::Absolute => {
+                let target = self.get_operand_address(mode).unwrap();
+                self.program_counter = target;
+            },
+            AddressingMode::Indirect => {
+                let addr = self.mem_read_u16(self.program_counter);
+                let lo_byte = self.mem_read(addr);
+                let hi_byte = if addr & 0x00FF == 0xFF {
+                    self.mem_read(addr & 0xFF00)
+                } else {
+                    self.mem_read(addr.wrapping_add(1))
+                };
+
+                let target: u16 = ((hi_byte as u16) << 8) | (lo_byte as u16);
+                self.program_counter = target;
+            }
+            _ => panic!("invalid addressing mode for opcode JMP!")
+        }
+    }
 
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -411,12 +435,13 @@ impl CPU {
                     "DEY" => self.dey(),
                     "EOR" => self.eor(&opcode.addressing_mode),
                     "INC" => self.inc(&opcode.addressing_mode),
+                    "JMP" => self.jmp(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
                 }
-                if opcode.addressing_mode != AddressingMode::Relative {
+                if opcode.addressing_mode != AddressingMode::Relative && opcode.name != "JMP" {
                     self.program_counter += (opcode.bytes - 1) as u16;
                 }
             } else {
