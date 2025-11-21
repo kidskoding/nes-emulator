@@ -324,15 +324,14 @@ impl CPU {
         self.register_y = self.register_y.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_y); 
     }
-    
-    fn jmp<'a>(&'a mut self, mode: &'a AddressingMode) {
+    fn jmp(&mut self, mode: &AddressingMode) {
         match mode {
             AddressingMode::Absolute => {
                 let target = self.get_operand_address(mode).unwrap();
                 self.program_counter = target;
             },
             AddressingMode::Indirect => {
-                let addr = self.mem_read_u16(self.program_counter);
+                let addr: u16 = self.mem_read_u16(self.program_counter);
                 let lo_byte = self.mem_read(addr);
                 let hi_byte = if addr & 0x00FF == 0xFF {
                     self.mem_read(addr & 0xFF00)
@@ -346,7 +345,15 @@ impl CPU {
             _ => panic!("invalid addressing mode for opcode JMP!")
         }
     }
-
+    fn jsr(&mut self, mode: &AddressingMode) {
+        let target = self.mem_read_u16(self.program_counter);
+        let return_addr = self.program_counter + 2;
+        
+        self.mem_write(0x00FF, (return_addr & 0xFF) as u8);
+        self.mem_write(0x0100, ((return_addr >> 8) & 0xFF) as u8);
+    
+        self.program_counter = target;
+    }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
@@ -436,6 +443,7 @@ impl CPU {
                     "EOR" => self.eor(&opcode.addressing_mode),
                     "INC" => self.inc(&opcode.addressing_mode),
                     "JMP" => self.jmp(&opcode.addressing_mode),
+                    "JSR" => self.jsr(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
