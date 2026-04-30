@@ -12,7 +12,7 @@ mod integrated_tests {
     #[test]
     fn test_unknown_opcode() {
         let mut cpu = CPU::new();
-        let res = cpu.load_and_run(vec![0x01, 0x04]);
+        let res = cpu.load_and_run(vec![0xFF, 0x04]);
 
         assert!(res.is_err());
     }
