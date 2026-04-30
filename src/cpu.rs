@@ -168,6 +168,12 @@ impl CPU {
     fn pha(&mut self) {
         self.stack_push(self.register_a);
     }
+    fn php(&mut self) {
+        // http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
+        let mut status = self.status;
+        status |= 0b0011_0000;
+        self.stack_push(status);
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -521,6 +527,7 @@ impl CPU {
                     "NOP" => { /* do nothing */ },
                     "ORA" => self.ora(&opcode.addressing_mode),
                     "PHA" => self.pha(),
+                    "PHP" => self.php(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
