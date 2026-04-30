@@ -159,6 +159,12 @@ impl CPU {
             self.update_zero_and_negative_flags(self.register_a);
         }
     }
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+        self.register_a |= value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -510,6 +516,7 @@ impl CPU {
                     "LDY" => self.ldy(&opcode.addressing_mode),
                     "LSR" => self.lsr(&opcode.addressing_mode),
                     "NOP" => { /* do nothing */ },
+                    "ORA" => self.ora(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
