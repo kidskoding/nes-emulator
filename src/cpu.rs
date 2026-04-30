@@ -203,6 +203,28 @@ impl CPU {
             self.update_zero_and_negative_flags(self.register_a);
         }
     }
+    fn ror(&mut self, mode: &AddressingMode) {
+        let old_carry = self.status & 1;
+        if let Some(addr) = self.get_operand_address(mode) {
+            let mut value = self.mem_read(addr);
+            if value & 1 == 1 {
+                self.status |= 0b0000_0001;
+            } else {
+                self.status &= 0b1111_1110;
+            }
+            value = (value >> 1) | (old_carry << 7);
+            self.mem_write(addr, value);
+            self.update_zero_and_negative_flags(value);
+        } else {
+            if self.register_a & 1 == 1 {
+                self.status |= 0b0000_0001;
+            } else {
+                self.status &= 0b1111_1110;
+            }
+            self.register_a = (self.register_a >> 1) | (old_carry << 7);
+            self.update_zero_and_negative_flags(self.register_a);
+        }
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -560,6 +582,7 @@ impl CPU {
                     "PLA" => self.pla(),
                     "PLP" => self.plp(),
                     "ROL" => self.rol(&opcode.addressing_mode),
+                    "ROR" => self.ror(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
