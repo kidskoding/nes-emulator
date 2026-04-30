@@ -124,6 +124,13 @@ impl CPU {
         self.register_a = value;
         self.update_zero_and_negative_flags(self.register_a);
     }
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value: u8 = self.mem_read(addr);
+
+        self.register_x = value;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -471,6 +478,7 @@ impl CPU {
                     "INC" => self.inc(&opcode.addressing_mode),
                     "JMP" => self.jmp(&opcode.addressing_mode),
                     "JSR" => self.jsr(&opcode.addressing_mode),
+                    "LDX" => self.ldx(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
