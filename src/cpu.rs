@@ -509,6 +509,7 @@ impl CPU {
                     "LDX" => self.ldx(&opcode.addressing_mode),
                     "LDY" => self.ldy(&opcode.addressing_mode),
                     "LSR" => self.lsr(&opcode.addressing_mode),
+                    "NOP" => { /* do nothing */ },
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
