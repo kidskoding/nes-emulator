@@ -178,6 +178,9 @@ impl CPU {
         self.register_a = data;
         self.update_zero_and_negative_flags(self.register_a);
     }
+    fn plp(&mut self) {
+        self.status = (self.stack_pop() & 0b1100_1111) | (self.status & 0b0011_0000);
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -533,6 +536,7 @@ impl CPU {
                     "PHA" => self.pha(),
                     "PHP" => self.php(),
                     "PLA" => self.pla(),
+                    "PLP" => self.plp(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
