@@ -5,6 +5,7 @@ pub struct CPU {
     pub register_x: u8,
     pub register_y: u8,
     pub status: u8,
+    pub stack_pointer: u8,
     pub program_counter: u16,
     memory: [u8; 0xFFFF],
 }
@@ -35,9 +36,35 @@ impl CPU {
             register_x: 0,
             register_y: 0,
             status: 0,
+            stack_pointer: 0xFF,
             program_counter: 0,
             memory: [0; 0xFFFF]
         }
+    }
+
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write(0x0100 + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    }
+
+    fn stack_push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xFF) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
+    }
+
+    #[allow(dead_code)]
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.mem_read(0x0100 + self.stack_pointer as u16)
+    }
+
+    #[allow(dead_code)]
+    fn stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+        hi << 8 | lo
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> Option<u16> {
@@ -345,12 +372,11 @@ impl CPU {
             _ => panic!("invalid addressing mode for opcode JMP!")
         }
     }
-    fn jsr(&mut self, mode: &AddressingMode) {
+    fn jsr(&mut self, _mode: &AddressingMode) {
         let target = self.mem_read_u16(self.program_counter);
-        let return_addr = self.program_counter + 2;
+        let return_addr = self.program_counter + 1; // PC is at first operand, last byte is PC + 1
         
-        self.mem_write(0x00FF, (return_addr & 0xFF) as u8);
-        self.mem_write(0x0100, ((return_addr >> 8) & 0xFF) as u8);
+        self.stack_push_u16(return_addr);
     
         self.program_counter = target;
     }
@@ -391,6 +417,7 @@ impl CPU {
         self.register_a = 0;
         self.register_x = 0;
         self.status = 0;
+        self.stack_pointer = 0xFF;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -398,13 +425,13 @@ impl CPU {
         self.memory[0x8000 .. (0x8000 + program.len())].copy_from_slice(&program[..]);
         self.program_counter = 0x8000;
     }
-    pub fn load_and_run(&mut self, program: Vec<u8>) -> Result<(), CPUError> {
+    pub fn load_and_run(&mut self, program: Vec<u8>) -> Result<(), CPUError<'_>> {
         self.load(program);
         self.run()?;
         Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), CPUError> {
+    pub fn run(&mut self) -> Result<(), CPUError<'_>> {
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
@@ -449,7 +476,7 @@ impl CPU {
                     "INY" => self.iny(),
                     _ => return Err(CPUError::UnimplementedInstruction(opcode.name.to_string())),
                 }
-                if opcode.addressing_mode != AddressingMode::Relative && opcode.name != "JMP" {
+                if opcode.addressing_mode != AddressingMode::Relative && opcode.name != "JMP" && opcode.name != "JSR" {
                     self.program_counter += (opcode.bytes - 1) as u16;
                 }
             } else {

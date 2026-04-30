@@ -9,7 +9,7 @@ mod test_jsr {
         cpu.mem_write(0x1234, 0x00);
         cpu.run().unwrap();
         
-        assert_eq!(cpu.program_counter, 0x1234);
+        assert_eq!(cpu.program_counter, 0x1235);
         
         let stored_low_byte = cpu.mem_read(0x01FE);
         let stored_high_byte = cpu.mem_read(0x01FF);
@@ -26,7 +26,7 @@ mod test_jsr {
         cpu.mem_write(0xABCD, 0x00);
         cpu.run().unwrap();
         
-        assert_eq!(cpu.program_counter, 0xABCD);
+        assert_eq!(cpu.program_counter, 0xABCE);
     }
 
     // test commit lmao
@@ -42,12 +42,12 @@ mod test_jsr {
         cpu.program_counter = 0x80FD;
         cpu.run().unwrap();
         
-        assert_eq!(cpu.program_counter, 0x1234);
+        assert_eq!(cpu.program_counter, 0x1235);
         
         let stored_low_byte = cpu.mem_read(0x01FE);
         let stored_high_byte = cpu.mem_read(0x01FF);
         let stored_addr = ((stored_high_byte as u16) << 8) | (stored_low_byte as u16);
         
-        assert_eq!(stored_addr, 0x8100);
+        assert_eq!(stored_addr, 0x80FF);
     }
 }
