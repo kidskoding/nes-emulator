@@ -233,6 +233,34 @@ impl CPU {
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
     }
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode).unwrap();
+        let value = self.mem_read(addr);
+        
+        // A - M - (1 - C) = A + (-M - 1) + C = A + (!M) + C
+        let value_neg = ((value as i8).wrapping_neg().wrapping_sub(1)) as u8;
+        
+        let result = self.register_a as u16
+            + value_neg as u16
+            + (self.status & 0b0000_0001) as u16;
+
+        if result > 0xFF {
+            self.status |= 0b0000_0001;
+        } else {
+            self.status &= 0b1111_1110;
+        }
+
+        let a = self.register_a;
+        let result8 = (result & 0xFF) as u8;
+        if (a ^ value_neg) & 0x80 == 0 && (a ^ result8) & 0x80 != 0 {
+            self.status |= 0b0100_0000;
+        } else {
+            self.status &= 0b1011_1111;
+        }
+
+        self.register_a = result8;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -593,6 +621,7 @@ impl CPU {
                     "ROR" => self.ror(&opcode.addressing_mode),
                     "RTI" => self.rti(),
                     "RTS" => self.rts(),
+                    "SBC" => self.sbc(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),

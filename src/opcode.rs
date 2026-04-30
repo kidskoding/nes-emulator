@@ -90,6 +90,15 @@ lazy_static! {
         OpCode::new(0x40, "RTI", 1, 6, AddressingMode::Implied),
         OpCode::new(0x60, "RTS", 1, 6, AddressingMode::Implied),
 
+        OpCode::new(0xe9, "SBC", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xe5, "SBC", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0xf5, "SBC", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0xed, "SBC", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0xfd, "SBC", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0xf9, "SBC", 3, 4, AddressingMode::AbsoluteY),
+        OpCode::new(0xe1, "SBC", 2, 6, AddressingMode::IndirectX),
+        OpCode::new(0xf1, "SBC", 2, 5, AddressingMode::IndirectY),
+
         OpCode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPageX),
         OpCode::new(0x8d, "STA", 3, 4, AddressingMode::Absolute),
