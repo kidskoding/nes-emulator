@@ -230,6 +230,9 @@ impl CPU {
         self.status |= 0b0010_0000; // bit 5 is always 1
         self.program_counter = self.stack_pop_u16();
     }
+    fn rts(&mut self) {
+        self.program_counter = self.stack_pop_u16() + 1;
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -589,6 +592,7 @@ impl CPU {
                     "ROL" => self.rol(&opcode.addressing_mode),
                     "ROR" => self.ror(&opcode.addressing_mode),
                     "RTI" => self.rti(),
+                    "RTS" => self.rts(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
