@@ -54,7 +54,6 @@ impl CPU {
         self.stack_push(lo);
     }
 
-    #[allow(dead_code)]
     fn stack_pop(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         self.mem_read(0x0100 + self.stack_pointer as u16)
@@ -173,6 +172,11 @@ impl CPU {
         let mut status = self.status;
         status |= 0b0011_0000;
         self.stack_push(status);
+    }
+    fn pla(&mut self) {
+        let data = self.stack_pop();
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
     }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
@@ -528,6 +532,7 @@ impl CPU {
                     "ORA" => self.ora(&opcode.addressing_mode),
                     "PHA" => self.pha(),
                     "PHP" => self.php(),
+                    "PLA" => self.pla(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
