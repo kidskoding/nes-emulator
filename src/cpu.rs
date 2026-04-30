@@ -42,12 +42,12 @@ impl CPU {
         }
     }
 
-    fn stack_push(&mut self, data: u8) {
+    pub fn stack_push(&mut self, data: u8) {
         self.mem_write(0x0100 + self.stack_pointer as u16, data);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
     }
 
-    fn stack_push_u16(&mut self, data: u16) {
+    pub fn stack_push_u16(&mut self, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xFF) as u8;
         self.stack_push(hi);
@@ -59,7 +59,6 @@ impl CPU {
         self.mem_read(0x0100 + self.stack_pointer as u16)
     }
 
-    #[allow(dead_code)]
     fn stack_pop_u16(&mut self) -> u16 {
         let lo = self.stack_pop() as u16;
         let hi = self.stack_pop() as u16;
@@ -224,6 +223,12 @@ impl CPU {
             self.register_a = (self.register_a >> 1) | (old_carry << 7);
             self.update_zero_and_negative_flags(self.register_a);
         }
+    }
+    fn rti(&mut self) {
+        self.status = self.stack_pop();
+        self.status &= 0b1100_1111; // ignore B and bit 5
+        self.status |= 0b0010_0000; // bit 5 is always 1
+        self.program_counter = self.stack_pop_u16();
     }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
@@ -583,6 +588,7 @@ impl CPU {
                     "PLP" => self.plp(),
                     "ROL" => self.rol(&opcode.addressing_mode),
                     "ROR" => self.ror(&opcode.addressing_mode),
+                    "RTI" => self.rti(),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
