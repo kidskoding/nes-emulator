@@ -138,6 +138,27 @@ impl CPU {
         self.register_y = value;
         self.update_zero_and_negative_flags(self.register_y);
     }
+    fn lsr(&mut self, mode: &AddressingMode) {
+        if let Some(addr) = self.get_operand_address(mode) {
+            let mut value = self.mem_read(addr);
+            if value & 1 == 1 {
+                self.status |= 0b0000_0001;
+            } else {
+                self.status &= 0b1111_1110;
+            }
+            value >>= 1;
+            self.mem_write(addr, value);
+            self.update_zero_and_negative_flags(value);
+        } else {
+            if self.register_a & 1 == 1 {
+                self.status |= 0b0000_0001;
+            } else {
+                self.status &= 0b1111_1110;
+            }
+            self.register_a >>= 1;
+            self.update_zero_and_negative_flags(self.register_a);
+        }
+    }
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode).unwrap();
         self.mem_write(addr, self.register_a);
@@ -487,6 +508,7 @@ impl CPU {
                     "JSR" => self.jsr(&opcode.addressing_mode),
                     "LDX" => self.ldx(&opcode.addressing_mode),
                     "LDY" => self.ldy(&opcode.addressing_mode),
+                    "LSR" => self.lsr(&opcode.addressing_mode),
                     "TAX" => self.tax(),
                     "INX" => self.inx(),
                     "INY" => self.iny(),
